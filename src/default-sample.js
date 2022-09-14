@@ -1,6 +1,7 @@
-export default `namespace "example:apex"
+export default `
+namespace "example:apex"
 
-interface {
+interface Greeter {
   sayHello(message:string): string
 }
 
