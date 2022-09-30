@@ -1,7 +1,7 @@
 <script>
   import { onMount } from "svelte";
 
-  import JSONTree from "svelte-json-tree";
+  import { JsonView } from "@zerodevx/svelte-json-view";
 
   import Editor from "./Editor.svelte";
 
@@ -19,6 +19,7 @@
   let selectEl;
 
   let parsedApexDoc = null;
+  let parsedModel = null;
   let ast = {};
   let activeTab = "AST";
 
@@ -40,26 +41,39 @@
   function update(src) {
     try {
       parsedApexDoc = parse(src, undefined, { noLocation: true });
+      parsedModel = new Context({}, parsedApexDoc);
       // svelte-json-tree doesn't render constructors well, so we have to
       // force the ast into a POJSO until we replace or fix the component.
-      ast = parseAst(parsedApexDoc);
+      ast = parseModel(parsedModel);
       location.hash = btoa(src);
     } catch (e) {
       ast = { error: "Error parsing apex", message: e.message };
     }
 
-    codegenValue = updateCodegen(parsedApexDoc);
+    // codegenValue = updateCodegen(parsedApexDoc);
   }
 
-  function parseAst(doc) {
+  const omitKeys = [
+    "namespacePos",
+    "errors",
+    "imported",
+    "config",
+    "imported",
+    "allTypes",
+    "length",
+  ];
+  function jsonProcessor(k, v) {
+    if (Array.isArray(v)) {
+      if (v.length == 0) return undefined;
+      return v;
+    }
+    if (omitKeys.indexOf(k) > -1) return undefined;
+    return v;
+  }
+
+  function parseModel(doc) {
     try {
-      // svelte-json-tree doesn't render constructors well, so we have to
-      // force the ast into a POJSO until we replace or fix the component.
-      return JSON.parse(
-        JSON.stringify(doc, (k, v) =>
-          Array.isArray(v) && v.length == 0 ? undefined : v
-        )
-      );
+      return JSON.parse(JSON.stringify(doc, jsonProcessor));
     } catch (e) {
       return { error: "Error parsing apex", message: e.message };
     }
@@ -69,26 +83,24 @@
 <div class="app">
   <header>
     <h1>
-      <a href="https://github.com/jsoverson/apex-validator">Apex Validator</a>
+      <a href="https://apexlang.github.io/ast-viewer/">Apex Visualizer</a>
     </h1>
   </header>
   <main class="content">
     <div class="left-panel">
-      <h3 style="text-align:center">Apex</h3>
+      <h3 style="text-align:center">Apex Source</h3>
       <div class="panel-content">
         <Editor on:change={onChange} bind:value={editorValue} />
       </div>
     </div>
     <div class="right-panel">
+      <h3 style="text-align:center">Apex Model Tree</h3>
       <div class="invalid-overlay" class:visible={ast.error}>
         <div class="bg" />
         <div class="error">
           <h3>Error: {ast.error}</h3>
           <h4>Error: {ast.message}</h4>
         </div>
-      </div>
-      <div class="panel-header">
-        <div class="tabs" />
       </div>
 
       <div class="panel-content">
@@ -97,7 +109,8 @@
             <div
               style="--json-tree-font-size: 13px;--json-tree-font-family:  monospace"
             >
-              <JSONTree value={ast} />
+              <!-- <JSONTree value={ast} /> -->
+              <JsonView json={ast} />
             </div>
           </div>
         </div>
@@ -114,7 +127,6 @@
   .app {
     height: 100%;
     max-height: 100%;
-    /* overflow: hidden; */
   }
   header {
     height: 3em;
@@ -172,6 +184,10 @@
     text-align: center;
     margin-top: 5em;
     width: 100%;
+  }
+  .bracket::before {
+    content: "<";
+    display: "block";
   }
 
   * :global(.mdc-select) {
